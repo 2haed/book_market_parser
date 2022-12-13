@@ -4,6 +4,7 @@ import sys
 import aiohttp
 import asyncio
 import warnings
+import time
 import requests
 from bs4 import BeautifulSoup
 from constants import HOSTURL, HEADERS, URL
@@ -63,9 +64,7 @@ async def get_page_data(session, page):
         soup = BeautifulSoup(await response.text(), 'html.parser')
         body = soup.find('div', class_='dt')
         references = body.find_all('a')
-        print(references)
         links = set(link.get('href') for link in references)
-        print(links)
         tasks = []
         for link in links:
             tasks.append(asyncio.create_task(get_product_data(session, link)))
@@ -75,11 +74,12 @@ async def get_page_data(session, page):
 async def gather_data():
     async with aiohttp.ClientSession() as session:
         tasks = []
-        for page_num in range(2, 3):
+        for page_num in range(2, 20):
+            print(f'Parsing page num: {page_num}')
             tasks.append(asyncio.create_task(get_page_data(session, page_num)))
         results = await asyncio.gather(*tasks)
         with open('data.json', 'w', encoding='utf-8') as file:
-            json.dump(*results, file, ensure_ascii=False, indent=4)
+            json.dump(results, file, ensure_ascii=False, indent=4)
 
 
 async def main():
@@ -87,5 +87,7 @@ async def main():
 
 
 if __name__ == '__main__':
+    start = time.time()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(gather_data())
+    print(time.time() - start)
