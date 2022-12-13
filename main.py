@@ -54,7 +54,6 @@ async def get_product_data(session, link):
             'name': soup.find('h1', class_='p_3 p_4').text if soup.find('h1', class_='p_3 p_4') is not None else None,
             'price': soup.find('div', class_='L_8').text if soup.find('div', class_='L_8') is not None else None
         }
-        print(items)
         return items
 
 
@@ -62,9 +61,11 @@ async def get_page_data(session, page):
     link = f'{HOSTURL}/{page}'
     async with session.get(link, headers=HEADERS) as response:
         soup = BeautifulSoup(await response.text(), 'html.parser')
-        references = soup.find_all('a')
-        links = [link.get('href') for link in references if
-                 link.get('href').startswith('https://www.detmir.ru/product/index/id/')]
+        body = soup.find('div', class_='dt')
+        references = body.find_all('a')
+        print(references)
+        links = set(link.get('href') for link in references)
+        print(links)
         tasks = []
         for link in links:
             tasks.append(asyncio.create_task(get_product_data(session, link)))
@@ -76,12 +77,9 @@ async def gather_data():
         tasks = []
         for page_num in range(2, 3):
             tasks.append(asyncio.create_task(get_page_data(session, page_num)))
-        return await asyncio.gather(*tasks)
-
-#
-# async def save_data(items):
-#     async with open('data.json', 'w', encoding='utf-8') as file:
-#         json.dump(items, file)
+        results = await asyncio.gather(*tasks)
+        with open('data.json', 'w', encoding='utf-8') as file:
+            json.dump(*results, file, ensure_ascii=False, indent=4)
 
 
 async def main():
