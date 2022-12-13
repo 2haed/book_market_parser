@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 import aiohttp
@@ -10,7 +11,7 @@ from fp.fp import FreeProxy
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 logging.basicConfig(filename='errors.log', format='%(asctime)s| %(message)s', datefmt='%m-%d-%Y %I:%M:%S',
-                    level=logging.WARNING)
+                    level=logging.INFO)
 
 
 def make_proxies(n: int) -> dict:
@@ -42,29 +43,45 @@ def uprint(*objects, sep=' ', end='\n', file=sys.stdout):
     if enc == 'UTF-8':
         print(*objects, sep=sep, end=end, file=file)
     else:
-        f = lambda obj: str(obj).encode(enc, errors='backslashreplace').decode(enc)
-        print(*map(f, objects), sep=sep, end=end, file=file)
+        formatted = lambda obj: str(obj).encode(enc, errors='backslashreplace').decode(enc)
+        print(*map(formatted, objects), sep=sep, end=end, file=file)
+
+
+async def get_product_data(session, link):
+    async with session.get(link, headers=HEADERS) as repsonse:
+        soup = BeautifulSoup(await repsonse.text(), 'html.parser')
+        items = {
+            'name': soup.find('h1', class_='p_3 p_4').text if soup.find('h1', class_='p_3 p_4') is not None else None,
+            'price': soup.find('div', class_='L_8').text if soup.find('div', class_='L_8') is not None else None
+        }
+        print(items)
+        return items
 
 
 async def get_page_data(session, page):
     link = f'{HOSTURL}/{page}'
     async with session.get(link, headers=HEADERS) as response:
-        # items = []
         soup = BeautifulSoup(await response.text(), 'html.parser')
         references = soup.find_all('a')
         links = [link.get('href') for link in references if
                  link.get('href').startswith('https://www.detmir.ru/product/index/id/')]
-
-        for product in links:
-            session.get(product, headers=HEADERS)!!!!!!!!!!!
+        tasks = []
+        for link in links:
+            tasks.append(asyncio.create_task(get_product_data(session, link)))
+    return await asyncio.gather(*tasks)
 
 
 async def gather_data():
     async with aiohttp.ClientSession() as session:
         tasks = []
-        for page_num in range(2, 60):
+        for page_num in range(2, 3):
             tasks.append(asyncio.create_task(get_page_data(session, page_num)))
         return await asyncio.gather(*tasks)
+
+#
+# async def save_data(items):
+#     async with open('data.json', 'w', encoding='utf-8') as file:
+#         json.dump(items, file)
 
 
 async def main():
