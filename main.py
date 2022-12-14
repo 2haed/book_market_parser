@@ -49,32 +49,38 @@ def uprint(*objects, sep=' ', end='\n', file=sys.stdout):
 
 
 async def get_product_data(session, link):
-    async with session.get(link, headers=HEADERS) as repsonse:
-        soup = BeautifulSoup(await repsonse.text(), 'html.parser')
-        items = {
-            'name': soup.find('h1', class_='p_3 p_4').text if soup.find('h1', class_='p_3 p_4') is not None else None,
-            'price': soup.find('div', class_='L_8').text if soup.find('div', class_='L_8') is not None else None
-        }
-        return items
+    async with session.get(link, headers=HEADERS) as response:
+        try:
+            soup = BeautifulSoup(await response.text(), 'html.parser')
+            items = {
+                'name': soup.find('h1', class_='p_3 p_4').text,
+                # 'price': soup.find('div', class_='L_8').text if soup.find('div', class_='L_8') is not None else None
+            }
+            print(items)
+            return items
+        except Exception as ex:
+            print(logging.warning(ex))
 
 
 async def get_page_data(session, page):
     link = f'{HOSTURL}/{page}'
     async with session.get(link, headers=HEADERS) as response:
-        soup = BeautifulSoup(await response.text(), 'html.parser')
-        body = soup.find('div', class_='dt')
-        references = body.find_all('a')
-        links = set(link.get('href') for link in references)
-        tasks = []
-        for link in links:
-            tasks.append(asyncio.create_task(get_product_data(session, link)))
-    return await asyncio.gather(*tasks)
+        try:
+            soup = BeautifulSoup(await response.text(), 'html.parser')
+            references = soup.find_all('a', class_='pG')
+            links = set(link.get('href') for link in references)
+            tasks = []
+            for link in links:
+                tasks.append(asyncio.create_task(get_product_data(session, link)))
+            return await asyncio.gather(*tasks)
+        except Exception as ex:
+            print(logging.warning(ex))
 
 
 async def gather_data():
     async with aiohttp.ClientSession() as session:
         tasks = []
-        for page_num in range(2, 20):
+        for page_num in range(2, 3):
             print(f'Parsing page num: {page_num}')
             tasks.append(asyncio.create_task(get_page_data(session, page_num)))
         results = await asyncio.gather(*tasks)
