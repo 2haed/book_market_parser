@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from data.constants import HOSTURL, HEADERS
 from fp.fp import FreeProxy
 
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 logging.basicConfig(filename='data/errors.log', format='%(asctime)s| %(message)s', datefmt='%m-%d-%Y %I:%M:%S',
                     level=logging.INFO)
