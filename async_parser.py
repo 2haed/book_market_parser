@@ -19,6 +19,7 @@ async def get_page_data(session, offset: int):
           f'].alias:lego;platform:web;promo:false;site:detmir;withregion:RU-MOW&expand=meta.facet.ages.adults,' \
           f'meta.facet.gender.adults,webp&meta=*&limit=100&offset={offset} '
     async with session.get(url, headers=HEADERS) as response:
+        assert response.status == 200
         for items in (await response.json())['items']:
             item = {
                 'price': items['price']['price'],
