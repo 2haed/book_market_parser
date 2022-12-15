@@ -1,2 +1,4 @@
 /venv/
 /.idea/
+# Ignore dynaconf secret files
+.secrets.*

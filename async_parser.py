@@ -5,16 +5,14 @@ import warnings
 import aiohttp
 import asyncpg
 from data.constants import HEADERS
-from db.config import con
+from db.config import settings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 logging.basicConfig(filename='data/errors.log', format='%(asctime)s| %(message)s', datefmt='%m-%d-%Y %I:%M:%S',
                     level=logging.INFO)
 
 
-async def get_page_data(session, offset: int):
-    connection = await asyncpg.connect(user=con['user'], password=con['password'], database=con['database'],
-                                       host=con['host'])
+async def get_page_data(session: aiohttp.ClientSession, connection_pool: asyncpg.Pool, offset: int):
     url = f'https://api.detmir.ru/v2/products?filter=brands[].id:7;categories[' \
           f'].alias:lego;platform:web;promo:false;site:detmir;withregion:RU-MOW&expand=meta.facet.ages.adults,' \
           f'meta.facet.gender.adults,webp&meta=*&limit=100&offset={offset} '
@@ -31,30 +29,34 @@ async def get_page_data(session, offset: int):
                 'link': items['link']['web_url'],
                 'picture': items['pictures'][0]['original']
             }
-            await connection.fetch(
-                'insert into products (product_id, title, price, type, article, rating, link, picture) values ($1, '
-                '$2, $3, $4, $5, $6, $7, $8) ON CONFLICT (product_id) DO UPDATE set product_id = excluded.product_id',
-                int(item['product_id']), item['title'], int(item['price']), item['type'], int(item['article']),
-                float(item['rating']),
-                item['link'], item['picture']
-            )
+            async with connection_pool.acquire() as connection:
+                await connection.fetch(
+                    'insert into products (product_id, title, price, type, article, rating, link, picture) values ($1, '
+                    '$2, $3, $4, $5, $6, $7, $8) ON CONFLICT (product_id) DO UPDATE set product_id = excluded.product_id',
+                    int(item['product_id']), item['title'], int(item['price']), item['type'], int(item['article']),
+                    float(item['rating']),
+                    item['link'], item['picture']
+                )
         print(f'Parsing: {offset}')
 
 
 async def main():
-    connection = await asyncpg.connect(user=con['user'], password=con['password'], database=con['database'],
-                                       host=con['host'])
-    await connection.fetch(
-        'create table if not exists public.products (product_id int primary key, title text, price int, type text, '
-        'article int, rating decimal(8, 2), link text, picture text) '
-
+    connection_pool = await asyncpg.create_pool(
+        user=settings.database.user, password=settings.database.password, database=settings.database.database,
+        host=settings.database.host
     )
+
+    async with connection_pool.acquire() as connection:
+        await connection.fetch(
+            'create table if not exists public.products (product_id int primary key, title text, price int, type text, '
+            'article int, rating decimal(8, 2), link text, picture text) '
+
+        )
     async with aiohttp.ClientSession() as session:
         tasks = []
         for offset in range(0, 500, 100):
-            tasks.append(asyncio.create_task(get_page_data(session, offset)))
+            tasks.append(asyncio.create_task(get_page_data(session, connection_pool, offset)))
         await asyncio.gather(*tasks)
-        await connection.close()
 
 
 if __name__ == '__main__':
